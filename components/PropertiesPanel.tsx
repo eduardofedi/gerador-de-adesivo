@@ -11,8 +11,6 @@ interface PropertiesPanelProps {
   onDelete: () => void;
 }
 
-const fonts = ['Inter', 'Bangers', 'Fredoka One', 'Pacifico', 'Permanent Marker', 'Roboto', 'Luckiest Guy'];
-
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ state, onUpdateState, selectedElement, onUpdate, onDelete }) => {
   const handleScaleChange = (newVal: number) => {
     if (!selectedElement) return;
@@ -70,12 +68,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ state, onUpdateState,
                     <div className="flex items-center gap-2 text-slate-700 font-bold text-[10px] uppercase"> <TextCursorInput className="w-3 h-3" /> Texto </div>
                     <input type="text" value={selectedElement.content} onChange={(e) => onUpdate({ content: e.target.value })} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">Fonte</label>
-                    <select value={selectedElement.fontFamily} onChange={(e) => onUpdate({ fontFamily: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold">
-                      {fonts.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </div>
+                  
                   <div className="space-y-2 pt-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase">Cor do Texto</label>
                     <div className="flex gap-2">

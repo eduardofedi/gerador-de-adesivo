@@ -51,7 +51,7 @@ const App: React.FC = () => {
     const isBase = extra.isBaseImage;
     const initialContent = extra.content || (type === 'text' ? 'Novo Texto' : undefined);
     const initialFontSize = extra.fontSize || (type === 'text' ? (extra.isSocial ? 28 : 24) : 24);
-    const initialFont = extra.fontFamily || 'Inter';
+    const initialFont = 'Inter'; // Sempre utiliza Inter
 
     // Se a largura e altura já vierem no extra (como no caso de imagens carregadas), usamos elas.
     // Caso contrário, usamos os padrões.
@@ -101,8 +101,8 @@ const App: React.FC = () => {
         
         const next = { ...el, ...updates };
         // Se for texto e mudar escala ou conteúdo, remede
-        if (next.type === 'text' && (updates.content !== undefined || updates.fontSize !== undefined || updates.fontFamily !== undefined)) {
-          const size = measureText(next.content || '', next.fontSize || 24, next.fontFamily || 'Inter', next.isSocial);
+        if (next.type === 'text' && (updates.content !== undefined || updates.fontSize !== undefined)) {
+          const size = measureText(next.content || '', next.fontSize || 24, 'Inter', next.isSocial);
           next.width = size.width;
           next.height = size.height;
         }
