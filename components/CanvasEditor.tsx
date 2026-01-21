@@ -284,7 +284,7 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
       />
       
       {state.step === 'preview' && (
-        <div className="absolute bottom-24 left-6 right-6 bg-white/95 backdrop-blur-sm border border-orange-200 p-3 rounded-2xl flex items-center gap-3 shadow-xl z-10 transition-all">
+        <div className="absolute bottom-[20%] left-6 right-6 bg-white/95 backdrop-blur-sm border border-orange-200 p-3 rounded-2xl flex items-center gap-3 shadow-xl z-10 transition-all">
           <div className="bg-orange-500 p-1.5 rounded-lg text-white flex-shrink-0">
             <AlertCircle className="w-4 h-4" />
           </div>
