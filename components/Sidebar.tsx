@@ -40,6 +40,33 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState })
     });
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const src = ev.target?.result as string;
+        // Criar objeto de imagem temporário para obter proporções
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = 300;
+          const ratio = img.height / img.width;
+          const width = Math.min(img.width, maxWidth);
+          const height = width * ratio;
+          
+          onAddElement('image', { 
+            src, 
+            isBaseImage: true,
+            width,
+            height
+          });
+        };
+        img.src = src;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="hidden md:flex flex-col w-80 bg-white border-r border-slate-200 overflow-hidden">
       {/* Ferramentas */}
@@ -53,14 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState })
                 type="file" 
                 accept="image/*" 
                 className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => onAddElement('image', { src: ev.target?.result as string, isBaseImage: true });
-                    reader.readAsDataURL(file);
-                  }
-                }}
+                onChange={handleFileUpload}
               />
               <Upload className="w-5 h-5 text-blue-600" />
               <span className="text-[10px] font-black text-blue-700 uppercase">Foto</span>

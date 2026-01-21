@@ -53,14 +53,17 @@ const App: React.FC = () => {
     const initialFontSize = extra.fontSize || (type === 'text' ? (extra.isSocial ? 28 : 24) : 24);
     const initialFont = extra.fontFamily || 'Inter';
 
-    let width = 150;
-    let height = 60;
+    // Se a largura e altura já vierem no extra (como no caso de imagens carregadas), usamos elas.
+    // Caso contrário, usamos os padrões.
+    let width = extra.width || 150;
+    let height = extra.height || 60;
 
     if (type === 'text' && initialContent) {
       const size = measureText(initialContent, initialFontSize, initialFont, extra.isSocial);
       width = size.width;
       height = size.height;
-    } else if (isBase) {
+    } else if (isBase && !extra.width) {
+      // Padrão de segurança caso não tenha vindo largura no extra
       width = 300;
       height = 300;
     }
