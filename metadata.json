@@ -1,0 +1,7 @@
+{
+  "name": "StickerZap - Criador de Adesivos",
+  "description": "Um editor de adesivos profissional e fácil de usar, com suporte a textos curvados, contornos estilo die-cut e exportação em alta qualidade, totalmente em Português-BR.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
