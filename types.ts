@@ -26,6 +26,12 @@ export interface StickerElement {
   isBaseImage?: boolean;
 }
 
+export interface WarningConfig {
+  x: number;
+  y: number;
+  width: number;
+}
+
 export interface EditorState {
   elements: StickerElement[];
   selectedId: string | null;
@@ -36,4 +42,5 @@ export interface EditorState {
   cornerRadius: number;
   step: EditorStep;
   showPinkCutLine: boolean;
+  warningConfig: WarningConfig;
 }

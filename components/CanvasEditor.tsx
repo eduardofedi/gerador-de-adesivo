@@ -19,11 +19,25 @@ const SOCIAL_ICONS = {
   whatsapp: "M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"
 };
 
+const SNAP_THRESHOLD = 8;
+
 const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state, onSelect, onUpdate, onUpdateState }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const [draggingWarning, setDraggingWarning] = useState(false);
+  
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
+  const [snapLines, setSnapLines] = useState<{ x?: number; y?: number } | null>(null);
+
+  // Form sizes (Reduzido ~45% para dar mais espaço de edição)
+  const RADIUS_BASE = 140; 
+  const BOX_BASE = 280;    
+  const RECT_W = 320;      
+  const RECT_H = 140;      
 
   useEffect(() => {
     state.elements.forEach(el => {
@@ -62,11 +76,12 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
       const fontSize = el.fontSize || 24;
       ctx.font = `bold ${fontSize}px ${el.fontFamily || 'Inter'}`;
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      let textX = 0;
+      ctx.textBaseline = 'alphabetic'; 
+      let textX = 5; 
+      const textY = el.height / 2 + (fontSize * 0.35); 
       if (el.isSocial) {
         ctx.save();
-        ctx.translate(fontSize * 0.6, el.height / 2);
+        ctx.translate(fontSize * 0.7, el.height / 2);
         const s = fontSize * 0.9 / 24;
         ctx.scale(s, s);
         ctx.translate(-12, -12);
@@ -77,7 +92,7 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
         textX = fontSize * 1.4;
       }
       ctx.fillStyle = isForSilhouette ? '#000000' : (el.fill || '#000000');
-      ctx.fillText(el.content || '', textX, el.height / 2);
+      ctx.fillText(el.content || '', textX, textY);
     }
     ctx.restore();
   };
@@ -93,7 +108,7 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
 
     while (stack.length > 0) {
       const [x, y] = stack.pop()!;
-      const idx = y * width + x;
+      const idx = (y * width + x);
       if (x < 0 || x >= width || y < 0 || y >= height || visited[idx] || data[idx * 4 + 3] > 10) continue;
       visited[idx] = 1;
       stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
@@ -110,15 +125,16 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
     const sil = document.createElement('canvas');
     sil.width = sil.height = sz;
     const sCtx = sil.getContext('2d');
-    if (!sCtx) return;
+    if (!sCtx) return null;
     state.elements.forEach(el => drawElement(sCtx, el, true));
     
     const rbCanvas = document.createElement('canvas');
     rbCanvas.width = rbCanvas.height = sz;
     const rbCtx = rbCanvas.getContext('2d');
-    if (!rbCtx) return;
+    if (!rbCtx) return null;
 
-    const steps = Math.max(200, b * 10);
+    // Criar o contorno expandido
+    const steps = Math.max(128, b * 4); 
     for (let i = 0; i < steps; i++) {
         const a = (i / steps) * Math.PI * 2;
         rbCtx.drawImage(sil, Math.cos(a) * b, Math.sin(a) * b);
@@ -126,48 +142,25 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
     rbCtx.drawImage(sil, 0, 0);
     fillInternalHoles(rbCtx, sz);
 
-    const finalMask = document.createElement('canvas');
-    finalMask.width = finalMask.height = sz;
-    const fmCtx = finalMask.getContext('2d');
-    if (!fmCtx) return;
-
-    const smoothingRadius = 0.8; 
-    const blurCanvas = document.createElement('canvas');
-    blurCanvas.width = blurCanvas.height = sz;
-    const bCtx = blurCanvas.getContext('2d');
-    if (bCtx) {
-        bCtx.filter = `blur(${smoothingRadius}px)`;
-        bCtx.drawImage(rbCanvas, 0, 0);
-        const idata = bCtx.getImageData(0, 0, sz, sz);
-        const data = idata.data;
-        for (let i = 0; i < data.length; i += 4) {
-            const alpha = data[i + 3];
-            if (alpha < 127) data[i + 3] = 0;
-            else if (alpha > 132) data[i + 3] = 255;
-            else data[i + 3] = (alpha - 127) * 51; 
-        }
-        fmCtx.putImageData(idata, 0, 0);
-    }
-
+    // Aplicar suavização e cor final (borda do adesivo)
     ctx.save();
-    const cl = document.createElement('canvas');
-    cl.width = cl.height = sz;
-    const clCtx = cl.getContext('2d');
-    if (clCtx) {
-        clCtx.fillStyle = color;
-        clCtx.fillRect(0, 0, sz, sz);
-        clCtx.globalCompositeOperation = 'destination-in';
-        clCtx.drawImage(finalMask, 0, 0);
-        ctx.drawImage(cl, 0, 0);
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = finalCanvas.height = sz;
+    const fCtx = finalCanvas.getContext('2d');
+    if (fCtx) {
+      fCtx.fillStyle = color;
+      fCtx.fillRect(0, 0, sz, sz);
+      fCtx.globalCompositeOperation = 'destination-in';
+      fCtx.drawImage(rbCanvas, 0, 0);
+      ctx.drawImage(finalCanvas, 0, 0);
     }
     ctx.restore();
-    return finalMask;
+    return rbCanvas; 
   };
 
   const renderToCanvas = (ctx: CanvasRenderingContext2D, mode: 'background' | 'full') => {
     const sz = state.canvasSize;
     ctx.clearRect(0, 0, sz, sz);
-    
     const c = sz / 2;
     const b = state.borderWidth;
 
@@ -175,40 +168,54 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
       if (state.stickerMode === 'special') {
         const mask = drawProfessionalSilhouette(ctx, b, state.borderColor);
         if (state.showPinkCutLine && mask) {
-            ctx.save();
-            const stroke = document.createElement('canvas');
-            stroke.width = stroke.height = sz;
-            const sCtx = stroke.getContext('2d');
-            if (sCtx) {
-                sCtx.drawImage(mask, -0.8, 0); sCtx.drawImage(mask, 0.8, 0);
-                sCtx.drawImage(mask, 0, -0.8); sCtx.drawImage(mask, 0, 0.8);
-                sCtx.globalCompositeOperation = 'destination-out';
-                sCtx.drawImage(mask, 0, 0);
-                const pink = document.createElement('canvas');
-                pink.width = pink.height = sz;
-                const pCtx = pink.getContext('2d');
-                if (pCtx) {
-                    pCtx.fillStyle = '#FF1493'; pCtx.fillRect(0, 0, sz, sz);
-                    pCtx.globalCompositeOperation = 'destination-in';
-                    pCtx.drawImage(stroke, 0, 0);
-                    ctx.drawImage(pink, 0, 0);
+          ctx.save();
+          // Criar contorno rosa sólido (#FF1493) expandindo levemente o gabarito
+          const pinkCanvas = document.createElement('canvas');
+          pinkCanvas.width = pinkCanvas.height = sz;
+          const pCtx = pinkCanvas.getContext('2d');
+          if (pCtx) {
+            const t = 2.5; // Espessura fixa do gabarito rosa
+            
+            // Dilatação para criar o traço externo
+            for (let dx = -t; dx <= t; dx++) {
+              for (let dy = -t; dy <= t; dy++) {
+                if (dx * dx + dy * dy <= t * t) {
+                  pCtx.drawImage(mask, dx, dy);
                 }
+              }
             }
-            ctx.restore();
+            
+            // Transformar toda a área dilatada em Rosa
+            pCtx.globalCompositeOperation = 'source-in';
+            pCtx.fillStyle = '#FF1493';
+            pCtx.fillRect(0, 0, sz, sz);
+            
+            // Subtrair o interior (máscara original) para sobrar só o fio
+            pCtx.globalCompositeOperation = 'destination-out';
+            pCtx.drawImage(mask, 0, 0);
+            
+            ctx.drawImage(pinkCanvas, 0, 0);
+          }
+          ctx.restore();
         }
       } else {
         ctx.beginPath();
-        if (state.stickerMode === 'round') ctx.arc(c, c, 240 + b, 0, Math.PI * 2);
-        else if (state.stickerMode === 'square') ctx.roundRect(c - (240 + b), c - (240 + b), 480 + b*2, 480 + b*2, state.cornerRadius);
-        else if (state.stickerMode === 'rect') ctx.roundRect(c - (270 + b), c - (115 + b), 540 + b*2, 230 + b*2, state.cornerRadius);
+        if (state.stickerMode === 'round') ctx.arc(c, c, RADIUS_BASE + b, 0, Math.PI * 2);
+        else if (state.stickerMode === 'square') ctx.roundRect(c - (RADIUS_BASE + b), c - (RADIUS_BASE + b), BOX_BASE + b*2, BOX_BASE + b*2, state.cornerRadius);
+        else if (state.stickerMode === 'rect') ctx.roundRect(c - (RECT_W/2 + b), c - (RECT_H/2 + b), RECT_W + b*2, RECT_H + b*2, state.cornerRadius);
+        
         ctx.fillStyle = state.borderColor;
         ctx.fill();
+        
         if (state.showPinkCutLine) {
-          ctx.save(); ctx.strokeStyle = '#FF1493'; ctx.lineWidth = 1; ctx.setLineDash([4, 2]); ctx.stroke(); ctx.restore();
+          ctx.save();
+          ctx.strokeStyle = '#FF1493';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.restore();
         }
       }
     }
-
     if (mode === 'full') {
       state.elements.forEach(el => drawElement(ctx, el));
     }
@@ -234,7 +241,23 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
     if (!ctx) return;
     renderToCanvas(ctx, 'full');
 
-    if (state.selectedId && state.step === 'edit') {
+    // Desenhar guias de snap
+    if (snapLines) {
+      ctx.save();
+      ctx.strokeStyle = '#2563eb';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1;
+      if (snapLines.x !== undefined) {
+        ctx.beginPath(); ctx.moveTo(snapLines.x, 0); ctx.lineTo(snapLines.x, state.canvasSize); ctx.stroke();
+      }
+      if (snapLines.y !== undefined) {
+        ctx.beginPath(); ctx.moveTo(0, snapLines.y); ctx.lineTo(state.canvasSize, snapLines.y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Alças de seleção
+    if (state.selectedId) {
       const el = state.elements.find(e => e.id === state.selectedId);
       if (el) {
         ctx.save();
@@ -243,18 +266,45 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
         ctx.translate(-el.width / 2, -el.height / 2);
         ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
         ctx.strokeRect(-2, -2, el.width + 4, el.height + 4);
+        
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.arc(el.width + 2, el.height + 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
         ctx.restore();
       }
     }
-  }, [state, images]);
+  }, [state, images, snapLines]);
 
   useEffect(() => draw(), [draw]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (state.step === 'preview') return;
     const rect = canvasRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (state.canvasSize / rect.width);
     const y = (e.clientY - rect.top) * (state.canvasSize / rect.height);
+
+    // Alça de redimensionamento
+    if (state.selectedId) {
+      const el = state.elements.find(e => e.id === state.selectedId);
+      if (el) {
+        const cx = el.x + el.width / 2;
+        const cy = el.y + el.height / 2;
+        const rad = -el.rotation * Math.PI / 180;
+        const localX = (x - cx) * Math.cos(rad) - (y - cy) * Math.sin(rad) + el.width / 2;
+        const localY = (x - cx) * Math.sin(rad) + (y - cy) * Math.cos(rad) + el.height / 2;
+
+        if (Math.abs(localX - el.width) < 20 && Math.abs(localY - el.height) < 20) {
+          setResizingId(state.selectedId);
+          setDragOffset({ x, y });
+          return;
+        }
+      }
+    }
+
+    // Seleção normal
     let hitId: string | null = null;
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
@@ -266,29 +316,96 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(({ state,
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingId || state.step === 'preview') return;
     const rect = canvasRef.current!.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) * (state.canvasSize / rect.width) - dragOffset.x;
-    const ny = (e.clientY - rect.top) * (state.canvasSize / rect.height) - dragOffset.y;
-    onUpdate(draggingId, { x: nx, y: ny });
+    const x = (e.clientX - rect.left) * (state.canvasSize / rect.width);
+    const y = (e.clientY - rect.top) * (state.canvasSize / rect.height);
+
+    if (draggingWarning) {
+      const nx = x - dragOffset.x;
+      const ny = y - dragOffset.y;
+      onUpdateState({ warningConfig: { ...state.warningConfig, x: nx, y: ny } });
+      return;
+    }
+
+    if (resizingId) {
+      const el = state.elements.find(e => e.id === resizingId);
+      if (el) {
+        const delta = (x - dragOffset.x) + (y - dragOffset.y);
+        if (el.type === 'text') {
+          const newSize = Math.max(10, (el.fontSize || 24) + delta * 0.4);
+          onUpdate(resizingId, { fontSize: newSize });
+        } else {
+          const ratio = el.height / el.width;
+          const newWidth = Math.max(20, el.width + delta * 0.5);
+          onUpdate(resizingId, { width: newWidth, height: newWidth * ratio });
+        }
+        setDragOffset({ x, y });
+      }
+      return;
+    }
+
+    if (draggingId) {
+      const currentEl = state.elements.find(el => el.id === draggingId);
+      if (!currentEl) return;
+      let nx = x - dragOffset.x;
+      let ny = y - dragOffset.y;
+      const elCenterX = nx + currentEl.width / 2;
+      const elCenterY = ny + currentEl.height / 2;
+      const canvasCenter = state.canvasSize / 2;
+      let activeSnaps: { x?: number; y?: number } = {};
+      const pointsX = [canvasCenter, ...state.elements.filter(el => el.id !== draggingId).map(el => el.x + el.width / 2)];
+      const pointsY = [canvasCenter, ...state.elements.filter(el => el.id !== draggingId).map(el => el.y + el.height / 2)];
+      for (const px of pointsX) { if (Math.abs(elCenterX - px) < SNAP_THRESHOLD) { nx = px - currentEl.width / 2; activeSnaps.x = px; break; } }
+      for (const py of pointsY) { if (Math.abs(elCenterY - py) < SNAP_THRESHOLD) { ny = py - currentEl.height / 2; activeSnaps.y = py; break; } }
+      setSnapLines(Object.keys(activeSnaps).length > 0 ? activeSnaps : null);
+      onUpdate(draggingId, { x: nx, y: ny });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDraggingId(null); setResizingId(null); setSnapLines(null);
+    setDraggingWarning(false);
+  };
+
+  const startWarningDrag = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (state.canvasSize / rect.width);
+    const y = (e.clientY - rect.top) * (state.canvasSize / rect.height);
+    setDraggingWarning(true);
+    setDragOffset({ x: x - state.warningConfig.x, y: y - state.warningConfig.y });
   };
 
   return (
-    <div className="relative bg-white rounded-[60px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border-[16px] border-white ring-1 ring-slate-200">
+    <div 
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className="relative bg-white rounded-[60px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border-[16px] border-white ring-1 ring-slate-200 select-none"
+    >
       <canvas 
         ref={canvasRef} 
         width={state.canvasSize} height={state.canvasSize} 
-        onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} 
-        onMouseUp={() => setDraggingId(null)} onMouseLeave={() => setDraggingId(null)} 
-        className={`${state.step === 'edit' ? 'cursor-move' : 'cursor-default'} rounded-[40px] w-full max-w-[600px] aspect-square`} 
+        onMouseDown={handleMouseDown} 
+        className="cursor-crosshair rounded-[40px] w-full max-w-[600px] aspect-square" 
       />
       
       {state.step === 'preview' && (
-        <div className="absolute bottom-[12%] left-6 right-6 bg-white/95 backdrop-blur-sm border border-orange-200 p-3 rounded-2xl flex items-center gap-3 shadow-xl z-10 transition-all">
+        <div 
+          style={{ 
+            left: `${(state.warningConfig.x / 600) * 100}%`, 
+            top: `${(state.warningConfig.y / 600) * 100}%`,
+            width: `${(state.warningConfig.width / 600) * 100}%`,
+            cursor: draggingWarning ? 'grabbing' : 'grab'
+          }}
+          onMouseDown={startWarningDrag}
+          className="absolute bg-white/95 backdrop-blur-sm border border-orange-200 p-3 rounded-2xl flex items-center gap-3 shadow-xl z-20 group"
+        >
           <div className="bg-orange-500 p-1.5 rounded-lg text-white flex-shrink-0">
             <AlertCircle className="w-4 h-4" />
           </div>
-          <p className="text-[10px] font-black text-orange-700 uppercase leading-tight tracking-tight">
+          <p className="text-[10px] font-black text-orange-700 uppercase leading-tight tracking-tight flex-1 pointer-events-none">
             Imagem ilustrativa, a arte final será aprovada no setor de artes com o designer responsável pelo pedido
           </p>
         </div>

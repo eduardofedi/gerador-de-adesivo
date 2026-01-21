@@ -11,6 +11,23 @@ import CanvasEditor, { CanvasEditorHandle } from './components/CanvasEditor';
 import Sidebar from './components/Sidebar';
 import PropertiesPanel from './components/PropertiesPanel';
 
+// Utilitário para medir o tamanho real do texto
+export const measureText = (text: string, fontSize: number, fontFamily: string, isSocial?: string): { width: number, height: number } => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { width: 150, height: fontSize * 1.2 };
+  
+  ctx.font = `bold ${fontSize}px ${fontFamily}`;
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+  const iconPadding = isSocial ? fontSize * 1.4 : 0;
+  
+  return {
+    width: textWidth + iconPadding + 10, // margem de segurança
+    height: fontSize * 1.2
+  };
+};
+
 const App: React.FC = () => {
   const editorRef = useRef<CanvasEditorHandle>(null);
   const [state, setState] = useState<EditorState>({
@@ -23,21 +40,42 @@ const App: React.FC = () => {
     cornerRadius: 20,
     step: 'edit',
     showPinkCutLine: true,
+    warningConfig: {
+      x: 30,
+      y: 480,
+      width: 540
+    }
   });
 
   const addElement = (type: StickerElement['type'], extra: Partial<StickerElement> = {}) => {
     const isBase = extra.isBaseImage;
+    const initialContent = extra.content || (type === 'text' ? 'Novo Texto' : undefined);
+    const initialFontSize = extra.fontSize || (type === 'text' ? (extra.isSocial ? 28 : 24) : 24);
+    const initialFont = extra.fontFamily || 'Inter';
+
+    let width = 150;
+    let height = 60;
+
+    if (type === 'text' && initialContent) {
+      const size = measureText(initialContent, initialFontSize, initialFont, extra.isSocial);
+      width = size.width;
+      height = size.height;
+    } else if (isBase) {
+      width = 300;
+      height = 300;
+    }
+
     const newElement: StickerElement = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      x: state.canvasSize / 2 - (isBase ? 150 : 75),
-      y: state.canvasSize / 2 - (isBase ? 150 : 20),
-      width: isBase ? 300 : 150,
-      height: isBase ? 300 : (extra.isSocial ? 40 : 60),
+      x: state.canvasSize / 2 - width / 2,
+      y: state.canvasSize / 2 - height / 2,
+      width,
+      height,
       rotation: 0,
-      content: type === 'text' ? 'Novo Texto' : undefined,
-      fontSize: type === 'text' ? (extra.isSocial ? 28 : 24) : undefined,
-      fontFamily: type === 'text' ? 'Inter' : undefined,
+      content: initialContent,
+      fontSize: initialFontSize,
+      fontFamily: initialFont,
       fill: type === 'text' ? (extra.isSocial ? (extra.isSocial === 'whatsapp' ? '#25D366' : '#E1306C') : '#000000') : '#fb923c',
       stroke: '#ffffff',
       strokeWidth: 2,
@@ -55,7 +93,18 @@ const App: React.FC = () => {
   const updateElement = (id: string, updates: Partial<StickerElement>) => {
     setState(prev => ({
       ...prev,
-      elements: prev.elements.map(el => el.id === id ? { ...el, ...updates } : el),
+      elements: prev.elements.map(el => {
+        if (el.id !== id) return el;
+        
+        const next = { ...el, ...updates };
+        // Se for texto e mudar escala ou conteúdo, remede
+        if (next.type === 'text' && (updates.content !== undefined || updates.fontSize !== undefined || updates.fontFamily !== undefined)) {
+          const size = measureText(next.content || '', next.fontSize || 24, next.fontFamily || 'Inter', next.isSocial);
+          next.width = size.width;
+          next.height = size.height;
+        }
+        return next;
+      }),
     }));
   };
 

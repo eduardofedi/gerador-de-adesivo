@@ -17,11 +17,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ state, onUpdateState,
   const handleScaleChange = (newVal: number) => {
     if (!selectedElement) return;
     if (selectedElement.type === 'text') {
-      onUpdate({ 
-        fontSize: newVal, 
-        height: newVal * 1.2, 
-        width: (newVal * (selectedElement.content?.length || 1) * 0.6) + (selectedElement.isSocial ? newVal : 0) 
-      });
+      // O App.tsx cuidará do recálculo de width/height baseado no fontSize alterado
+      onUpdate({ fontSize: newVal });
     } else {
       const ratio = selectedElement.height / selectedElement.width;
       onUpdate({ width: newVal, height: newVal * ratio });
