@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Plus, 
   ArrowRight,
@@ -30,6 +30,7 @@ export const measureText = (text: string, fontSize: number, fontFamily: string, 
 
 const App: React.FC = () => {
   const editorRef = useRef<CanvasEditorHandle>(null);
+  const [usageCount, setUsageCount] = useState<number>(0);
   const [state, setState] = useState<EditorState>({
     elements: [],
     selectedId: null,
@@ -47,14 +48,20 @@ const App: React.FC = () => {
     }
   });
 
+  // Carregar contagem inicial do localStorage
+  useEffect(() => {
+    const savedCount = localStorage.getItem('stickerzap_preview_usage_count');
+    if (savedCount) {
+      setUsageCount(parseInt(savedCount, 10));
+    }
+  }, []);
+
   const addElement = (type: StickerElement['type'], extra: Partial<StickerElement> = {}) => {
     const isBase = extra.isBaseImage;
     const initialContent = extra.content || (type === 'text' ? 'Novo Texto' : undefined);
     const initialFontSize = extra.fontSize || (type === 'text' ? (extra.isSocial ? 28 : 24) : 24);
     const initialFont = 'Inter'; // Sempre utiliza Inter
 
-    // Se a largura e altura já vierem no extra (como no caso de imagens carregadas), usamos elas.
-    // Caso contrário, usamos os padrões.
     let width = extra.width || 150;
     let height = extra.height || 60;
 
@@ -63,7 +70,6 @@ const App: React.FC = () => {
       width = size.width;
       height = size.height;
     } else if (isBase && !extra.width) {
-      // Padrão de segurança caso não tenha vindo largura no extra
       width = 300;
       height = 300;
     }
@@ -100,7 +106,6 @@ const App: React.FC = () => {
         if (el.id !== id) return el;
         
         const next = { ...el, ...updates };
-        // Se for texto e mudar escala ou conteúdo, remede
         if (next.type === 'text' && (updates.content !== undefined || updates.fontSize !== undefined)) {
           const size = measureText(next.content || '', next.fontSize || 24, 'Inter', next.isSocial);
           next.width = size.width;
@@ -120,6 +125,12 @@ const App: React.FC = () => {
   };
 
   const setStep = (step: EditorStep) => {
+    if (step === 'preview' && state.step !== 'preview') {
+      // Incrementar contagem ao entrar na prévia
+      const newCount = usageCount + 1;
+      setUsageCount(newCount);
+      localStorage.setItem('stickerzap_preview_usage_count', newCount.toString());
+    }
     setState(prev => ({ ...prev, step, selectedId: null }));
   };
 
@@ -175,7 +186,8 @@ const App: React.FC = () => {
         <Sidebar 
           state={state} 
           onAddElement={addElement} 
-          onUpdateState={(u) => setState(p => ({...p, ...u}))} 
+          onUpdateState={(u) => setState(p => ({...p, ...u}))}
+          usageCount={usageCount}
         />
 
         <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center p-8 bg-slate-100 canvas-container">

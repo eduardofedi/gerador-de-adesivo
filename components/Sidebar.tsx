@@ -13,7 +13,8 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Activity
 } from 'lucide-react';
 import { StickerElement, EditorState, StickerMode } from '../types';
 
@@ -21,9 +22,10 @@ interface SidebarProps {
   state: EditorState;
   onAddElement: (type: StickerElement['type'], extra?: Partial<StickerElement>) => void;
   onUpdateState: (updates: Partial<EditorState>) => void;
+  usageCount: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState }) => {
+const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState, usageCount }) => {
 
   const moveLayer = (index: number, direction: 'up' | 'down') => {
     const newElements = [...state.elements];
@@ -131,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState })
            <span className="text-[10px] font-bold text-slate-300">{state.elements.length}</span>
         </div>
         
-        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2">
+        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
           {state.elements.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-[11px] text-slate-400 font-medium italic">Nenhum objeto adicionado</p>
@@ -167,6 +169,18 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAddElement, onUpdateState })
               );
             })
           )}
+        </div>
+      </div>
+
+      {/* Footer de Contagem - Movido para o Sidebar */}
+      <div className="p-4 bg-slate-50 border-t border-slate-100 flex-shrink-0">
+        <div className="flex items-center gap-3 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm select-none transition-all hover:shadow-md">
+          <div className="bg-blue-100 p-1 rounded-md flex-shrink-0">
+            <Activity className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">
+            Utilizações da Prévia: <span className="text-blue-600 ml-1">{usageCount}</span>
+          </p>
         </div>
       </div>
     </div>
